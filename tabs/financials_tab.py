@@ -1,19 +1,21 @@
 # tabs/financials_tab.py
 import streamlit as st
-import pandas as pd
 from finance.data_fetcher import fetch_financial_statements
 from finance.data_processor import process_financial_data
 from finance.data_exporter import export_to_excel
-from finance.config import DEFAULT_TICKER
 
-def show_financials_tab():
-    st.subheader("Financial Statements Over the Years")
+def show_financials_tab(selected_ticker):
+    """
+    Displays financial statements for the selected stock ticker.
+    Allows exporting the financial data as an Excel file.
+    """
 
-    ticker = st.text_input("Enter Stock Ticker", value=DEFAULT_TICKER, key="financials_ticker")
-    balance, income, cashflow = fetch_financial_statements(ticker)
+    # Fetch and process financial data for the selected ticker
+    st.subheader(f"Financial Statements for {selected_ticker}")
+    balance, income, cashflow = fetch_financial_statements(selected_ticker)
     financials = process_financial_data(balance, income, cashflow)
 
-    # Display them as tables in Streamlit
+    # Display financial data in expanders
     with st.expander("Balance Sheet"):
         st.dataframe(financials["balance"])
     with st.expander("Income Statement"):
@@ -21,7 +23,11 @@ def show_financials_tab():
     with st.expander("Cash Flow"):
         st.dataframe(financials["cashflow"])
 
-    # Button to export to Excel
-    if st.button("Export to Excel"):
-        filepath = export_to_excel(financials)
-        st.success(f"Data exported to: {filepath}")
+    # Automatically download the file when the user clicks "Export to Excel"
+    filename, excel_data = export_to_excel(financials, selected_ticker)
+    st.download_button(
+        label="Download Excel",
+        data=excel_data,
+        file_name=filename,
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

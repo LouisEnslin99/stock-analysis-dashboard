@@ -32,13 +32,13 @@ def main():
 
     # Conditionally display tabs or message
     if st.session_state["selected_ticker"] is None:
-        pass  # Do nothing if no ticker is selected
+        pass
     else:
         tab1, tab2, tab3 = st.tabs(["Overview", "Financials", "Analysis"])
         with tab1:
             show_overview_tab()
         with tab2:
-            show_financials_tab()
+            show_financials_tab(st.session_state["selected_ticker"])
         with tab3:
             show_analysis_tab()
 
@@ -111,26 +111,6 @@ def apply_style_settings():
             border-bottom: 2px solid {underline_color}; /* Underline active tab */
         }}
 
-        /* Adjust hover states */
-        .stTabs [data-baseweb="tab"]:hover [aria-selected="true"] {{
-            color: {hover_color}; /* Ensure hover works for active tabs too */
-        }}
-
-        /* Button Styling */
-        .stButton>button {{
-            background-color: {primary_color};
-            color: {text_color};
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }}
-        .stButton>button:hover {{
-            background-color: {hover_color};
-        }}
-
         /* Centered header text */
         h1 {{
             color: {text_color};
@@ -139,7 +119,6 @@ def apply_style_settings():
     </style>
     """
     st.markdown(custom_css, unsafe_allow_html=True)
-
 
 if __name__ == "__main__":
     main()
