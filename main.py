@@ -10,14 +10,16 @@ from finance.data_fetcher import search_yahoo_finance
 def main():
     """
     Main entry point:
-    - Configure Streamlit’s page layout (wide or centered, your choice).
-    - Always show the search bar at the top.
-    - If no ticker is selected, show a message.
-    - If a ticker is selected, show the 3 tabs (Overview, Financials, Analysis).
+    - Configure Streamlit’s page layout.
+    - Display adjustable style settings.
+    - Show the search bar and tabs based on user selection.
     """
 
-    # You can pick 'centered' or 'wide'. Let's keep it 'centered' for simplicity.
-    st.set_page_config(layout="centered")  
+    # Set page layout to wide
+    st.set_page_config(layout="wide")  
+
+    # Apply the style settings
+    apply_style_settings()
 
     # Make sure selected_ticker is initialized
     if "selected_ticker" not in st.session_state:
@@ -30,7 +32,7 @@ def main():
 
     # Conditionally display tabs or message
     if st.session_state["selected_ticker"] is None:
-        st.info("No company selected yet. Please pick one above.")
+        pass  # Do nothing if no ticker is selected
     else:
         tab1, tab2, tab3 = st.tabs(["Overview", "Financials", "Analysis"])
         with tab1:
@@ -42,10 +44,16 @@ def main():
 
 def draw_search_area():
     """
-    Renders a search bar at the top.
+    Renders a search bar at the top with a custom width in wide layout.
     Allows the user to select a company/ticker from suggestions.
     """
-    company_query = st.text_input("Search for a company or ticker", value="")
+    col1, col2, col3 = st.columns([1, 2, 1])  # Adjust ratios to control width
+    with col2:
+        company_query = st.text_input(
+            label="",
+            placeholder="Search for a company or ticker",
+            value=""
+        )
 
     if company_query.strip():
         suggestions = search_yahoo_finance(company_query.strip(), limit=5)
@@ -66,6 +74,72 @@ def draw_search_area():
             chosen_symbol = suggestions[selected_index].get("symbol")
             if chosen_symbol and chosen_symbol != st.session_state["selected_ticker"]:
                 st.session_state["selected_ticker"] = chosen_symbol
+
+def apply_style_settings():
+    """
+    Applies the custom style settings using Streamlit's markdown for CSS.
+    """
+    primary_color = "#1a73e8"  # A modern blue tone
+    background_color = "#1e1e1e"  # Dark background for a sleek appearance
+    text_color = "#ffffff"  # White for high contrast
+    hover_color = "#ff9800"  # A modern orange tone for hover
+    underline_color = "#1a73e8"  # Blue underline to match the primary theme
+
+    custom_css = f"""
+    <style>
+        /* Global Background */
+        .main {{
+            background-color: {background_color};
+        }}
+
+        /* Tabs */
+        .stTabs [data-baseweb="tab"] {{
+            background-color: transparent; /* No background boxes */
+            color: {text_color}; /* White text */
+            font-weight: bold;
+            padding: 10px 15px;
+            border: none; /* No borders */
+            border-bottom: 2px solid transparent; /* Invisible underline */
+            transition: all 0.3s ease; /* Smooth hover effect */
+        }}
+        .stTabs [data-baseweb="tab"]:hover {{
+            color: {hover_color}; /* Change text color on hover */
+            border-bottom: 2px solid {underline_color}; /* Add underline on hover */
+        }}
+        .stTabs [data-baseweb="tab"][aria-selected="true"] {{
+            color: {underline_color}; /* Active tab text color */
+            border-bottom: 2px solid {underline_color}; /* Underline active tab */
+        }}
+
+        /* Adjust hover states */
+        .stTabs [data-baseweb="tab"]:hover [aria-selected="true"] {{
+            color: {hover_color}; /* Ensure hover works for active tabs too */
+        }}
+
+        /* Button Styling */
+        .stButton>button {{
+            background-color: {primary_color};
+            color: {text_color};
+            border-radius: 8px;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }}
+        .stButton>button:hover {{
+            background-color: {hover_color};
+        }}
+
+        /* Centered header text */
+        h1 {{
+            color: {text_color};
+            text-align: center;
+        }}
+    </style>
+    """
+    st.markdown(custom_css, unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
     main()
