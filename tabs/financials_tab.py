@@ -3,6 +3,8 @@ import pandas as pd
 import plotly.express as px
 
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+
+# Your existing imports/data fetchers
 from finance.data_fetcher import fetch_financial_statements
 from finance.data_processor import format_dataframe
 from finance.config import (
@@ -11,102 +13,161 @@ from finance.config import (
     INCOME_TOP_5, INCOME_NEXT_15
 )
 
+
 def show_financials_tab(selected_ticker):
     """
-    Displays financial statements for the selected stock ticker, side-by-side:
-      - Left: an AgGrid table with row selection
-      - Right: a chart that displays the selected row
+    Displays three sections (Income, Balance, Cash Flow) in a wide layout with dark-themed tables.
+    Each section has a top-5 table and an expandable 15-metrics table.
+    Both tables can update the pinned chart in the sidebar.
     """
     st.subheader(f"Financial Statements for {selected_ticker}")
 
-    # 1) Fetch data
+    # 1) Fetch and format data
     balance_df, income_df, cashflow_df = fetch_financial_statements(selected_ticker)
-
-    # 2) Format the data (fill N/A, etc.)
     balance_df = format_dataframe(balance_df)
     income_df = format_dataframe(income_df)
     cashflow_df = format_dataframe(cashflow_df)
 
-    # 3) Combine data into one DataFrame for demonstration
-    combined_df = _combine_dataframes_for_display(
-        {
-            "Income": income_df,
-            "Balance": balance_df,
-            "Cashflow": cashflow_df,
-        }
+    # 2) Income Statement
+    st.markdown("---")
+    st.subheader("Income")
+    _render_category_interactive(
+        dataframe=income_df,
+        top_5=INCOME_TOP_5,
+        next_15=INCOME_NEXT_15,
+        category_key="income"
     )
 
-    # 4) Split layout: table on the left, chart on the right
-    col_left, col_right = st.columns([1, 1.5], gap="large")
+    # 3) Balance Sheet
+    st.markdown("---")
+    st.subheader("Balance")
+    _render_category_interactive(
+        dataframe=balance_df,
+        top_5=BALANCE_TOP_5,
+        next_15=BALANCE_NEXT_15,
+        category_key="balance"
+    )
 
-    with col_left:
-        st.write("### Select a row to plot →")
+    # 4) Cash Flow
+    st.markdown("---")
+    st.subheader("Cash Flow")
+    _render_category_interactive(
+        dataframe=cashflow_df,
+        top_5=CASHFLOW_TOP_5,
+        next_15=CASHFLOW_NEXT_15,
+        category_key="cashflow"
+    )
 
-        # Build AgGrid options
-        gb = GridOptionsBuilder.from_dataframe(combined_df)
-        gb.configure_selection(
-            use_checkbox=False,
-            selection_mode="single"
-        )
-        gb.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=10)
-        grid_options = gb.build()
-
-        # Render AgGrid
-        grid_response = AgGrid(
-            combined_df,
-            gridOptions=grid_options,
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            fit_columns_on_grid_load=True,
-            theme="balham",
-        )
-
-    with col_right:
-        st.write("### Selected Metric Chart")
-
-        selected_rows = grid_response["selected_rows"]
-        # According to your debug info, 'selected_rows' is a DataFrame. Let's handle that safely.
-        if isinstance(selected_rows, pd.DataFrame):
-            # If there's at least 1 row selected
-            if not selected_rows.empty:
-                # Pull the first selected row
-                row_series = selected_rows.iloc[0]  # row_series is a Series
-                metric_name = row_series["Metric"]
-                category = row_series["Category"]
-
-                # Build the data for plotting
-                data_for_plot = _row_to_plot_data(row_series)
-                fig = px.bar(data_for_plot, x="Year", y="Value",
-                             title=f"{category} – {metric_name}")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("No row selected yet. Please select a row in the table.")
-        else:
-            # If selected_rows is not a DataFrame, handle it differently (list, etc.)
-            st.warning("selected_rows is not a DataFrame, check your AgGrid config.")
+    # 5) Show the chart pinned in the sidebar (always visible)
+    _show_chart_in_sidebar()
 
 
-def _row_to_plot_data(row_series):
+def _render_category_interactive(dataframe, top_5, next_15, category_key=""):
     """
-    Convert a Pandas Series (one row) into a DataFrame with columns [Year, Value].
-    We skip 'Metric' and 'Category' columns, focusing on the year columns.
+    Renders two tables:
+      1) A table for the top 5 metrics (dark theme, no blank space).
+      2) An expander for the next 15 metrics (also dark theme, scrollable).
+    Each table calls '_render_aggrid_table()' to handle row selection.
     """
-    year_value_pairs = []
+    st.caption("Top 5 Metrics")
+    _render_aggrid_table(
+        df=dataframe,
+        metric_list=top_5,
+        grid_height=200,           # short table for top 5
+        allow_scroll=True,
+        table_key= category_key + str(5)
+    )
+
+    with st.expander("View 15 More Metrics"):
+        _render_aggrid_table(
+            df=dataframe,
+            metric_list=next_15,
+            grid_height=400,       # taller table for next 15
+            allow_scroll=True,
+            table_key= category_key + str(15)
+        )
+
+
+def _render_aggrid_table(df, metric_list, grid_height=200, allow_scroll=False, table_key=""):
+    """
+    Displays an AgGrid table in dark mode, using the entire table width.
+    - Removes rows entirely 'N/A'.
+    - If user selects a row, we store it in session_state["selected_financial_row"].
+    - 'allow_scroll' determines if we use normal layout w/ scrollbars.
+    """
+    # 1) Subset the metrics
+    subset_df = df.loc[df.index.intersection(metric_list)].copy()
+
+    # Drop rows that are fully N/A
+    subset_df.dropna(how="all", inplace=True)
+    if subset_df.empty:
+        st.warning("No valid data for these metrics.")
+        return
+
+    # Convert index -> column "Metric"
+    subset_df.reset_index(inplace=True)
+    subset_df.rename(columns={"index": "Metric"}, inplace=True)
+
+    # 2) Build AgGrid config
+    gb = GridOptionsBuilder.from_dataframe(subset_df)
+    gb.configure_selection(selection_mode="single", use_checkbox=False)
+
+    # Let columns auto-fill the space
+    # 'domLayout="normal"' ensures the table has its own scroll area if needed.
+    # We explicitly say 'suppressHorizontalScroll=False' so user can scroll horizontally.
+    grid_options = {
+        "domLayout": "normal",
+        "suppressHorizontalScroll": False,
+        # Some prefer autoSizeAllColumns on load, but let's rely on fit_columns_on_grid_load
+    }
+    gb.configure_grid_options(**grid_options)
+
+    # (Optional) No pagination for only 5 or 15 rows
+    gb.configure_pagination(enabled=False)
+
+    final_grid_options = gb.build()
+
+    # 3) Render the grid
+    grid_response = AgGrid(
+        subset_df,
+        data_return_mode='AS_INPUT', 
+        gridOptions=final_grid_options,
+        update_mode=GridUpdateMode.MODEL_CHANGED,
+        # By default, let's auto-fit columns on load to avoid big blank space:
+        fit_columns_on_grid_load=True,
+        theme="balham",  # pick a dark theme
+        height=grid_height,   # so we see a scrollbar if content overflows
+        key=table_key,
+        persist_selection=True,
+    )
+
+    # 4) Parse selection
+    selected_rows = grid_response["selected_rows"]
+    if isinstance(selected_rows, pd.DataFrame) and not selected_rows.empty:
+        row_series = selected_rows.iloc[0]
+        row_info = _build_row_info(row_series)
+        st.session_state["selected_financial_row"] = row_info
+
+
+def _build_row_info(row_series):
+    """
+    Convert the selected row into:
+      { "metric": "<MetricName>", "year_values": { "2022": floatVal, ... } }
+    """
+    metric_name = row_series["Metric"]
+    year_values = {}
     for col_name, val_str in row_series.items():
-        if col_name in ["Metric", "Category"]:
+        if col_name == "Metric":
             continue
         numeric_val = _parse_dollar_string(val_str)
         if numeric_val is not None:
-            year_value_pairs.append((col_name, numeric_val))
+            year_values[col_name] = numeric_val
 
-    df = pd.DataFrame(year_value_pairs, columns=["Year", "Value"])
-    return df
+    return {"metric": metric_name, "year_values": year_values}
 
 
 def _parse_dollar_string(value_str):
-    """
-    Convert '$1,234.56' -> float(1234.56).
-    Return None if it's 'N/A' or unparseable.
-    """
+    """Convert '$1,234.56' -> 1234.56. Return None if 'N/A' or unparseable."""
     if not value_str or value_str == "N/A":
         return None
     try:
@@ -116,28 +177,32 @@ def _parse_dollar_string(value_str):
         return None
 
 
-def _combine_dataframes_for_display(dfs_dict):
+def _show_chart_in_sidebar():
     """
-    Combine multiple dataframes (Income, Balance, Cashflow) into one wide DataFrame.
-    Each DF should have row labels as metrics. We'll reset_index and add a 'Category' column.
+    Displays a line chart in the sidebar. Pinned so it's visible while scrolling.
     """
-    frames = []
-    for category, df in dfs_dict.items():
-        temp = df.copy().reset_index()
-        temp.rename(columns={"index": "Metric"}, inplace=True)
-        temp["Category"] = category
-        frames.append(temp)
+    with st.sidebar:
+        st.header("Selected Metric Chart")
+        row_info = st.session_state.get("selected_financial_row", None)
+        if not row_info:
+            st.info("No metric selected yet.")
+            return
 
-    combined = pd.concat(frames, axis=0, ignore_index=True)
+        metric_name = row_info["metric"]
+        year_dict = row_info["year_values"]
+        df_for_plot = pd.DataFrame(list(year_dict.items()), columns=["Year", "Value"])
 
-    # Ensure 'Category' and 'Metric' are leftmost
-    cols = list(combined.columns)
-    if "Category" in cols:
-        cols.remove("Category")
-        cols.insert(0, "Category")
-    if "Metric" in cols:
-        cols.remove("Metric")
-        cols.insert(1, "Metric")
-    combined = combined[cols]
+        # Sort by numeric year if possible
+        try:
+            df_for_plot["Year"] = df_for_plot["Year"].astype(int)
+            df_for_plot.sort_values(by="Year", inplace=True)
+        except:
+            pass
 
-    return combined
+        fig = px.line(
+            df_for_plot,
+            x="Year", y="Value",
+            markers=True,
+            title=f"{metric_name} Over Time"
+        )
+        st.plotly_chart(fig, use_container_width=True)
