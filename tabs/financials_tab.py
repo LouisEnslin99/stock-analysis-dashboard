@@ -1,123 +1,143 @@
 import streamlit as st
+import pandas as pd
+import plotly.express as px
+
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 from finance.data_fetcher import fetch_financial_statements
-from finance.data_processor import process_financial_data
+from finance.data_processor import format_dataframe
 from finance.config import (
     BALANCE_TOP_5, BALANCE_NEXT_15,
     CASHFLOW_TOP_5, CASHFLOW_NEXT_15,
     INCOME_TOP_5, INCOME_NEXT_15
 )
-import pandas as pd
-
 
 def show_financials_tab(selected_ticker):
     """
-    Displays financial statements for the selected stock ticker,
-    focusing on the top metrics and expandable additional metrics.
+    Displays financial statements for the selected stock ticker, side-by-side:
+      - Left: an AgGrid table with row selection
+      - Right: a chart that displays the selected row
     """
     st.subheader(f"Financial Statements for {selected_ticker}")
 
-    # Fetch and process financial data
-    balance, income, cashflow = fetch_financial_statements(selected_ticker)
-    financials = {
-        "Balance": balance,
-        "Income": income,
-        "Cashflow": cashflow
-    }
+    # 1) Fetch data
+    balance_df, income_df, cashflow_df = fetch_financial_statements(selected_ticker)
 
-    # Render each category
-    render_category("Income", income, INCOME_TOP_5, INCOME_NEXT_15)
-    render_category("Balance", balance, BALANCE_TOP_5, BALANCE_NEXT_15)
-    render_category("Cash Flow", cashflow, CASHFLOW_TOP_5, CASHFLOW_NEXT_15)
+    # 2) Format the data (fill N/A, etc.)
+    balance_df = format_dataframe(balance_df)
+    income_df = format_dataframe(income_df)
+    cashflow_df = format_dataframe(cashflow_df)
+
+    # 3) Combine data into one DataFrame for demonstration
+    combined_df = _combine_dataframes_for_display(
+        {
+            "Income": income_df,
+            "Balance": balance_df,
+            "Cashflow": cashflow_df,
+        }
+    )
+
+    # 4) Split layout: table on the left, chart on the right
+    col_left, col_right = st.columns([1, 1.5], gap="large")
+
+    with col_left:
+        st.write("### Select a row to plot →")
+
+        # Build AgGrid options
+        gb = GridOptionsBuilder.from_dataframe(combined_df)
+        gb.configure_selection(
+            use_checkbox=False,
+            selection_mode="single"
+        )
+        gb.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=10)
+        grid_options = gb.build()
+
+        # Render AgGrid
+        grid_response = AgGrid(
+            combined_df,
+            gridOptions=grid_options,
+            update_mode=GridUpdateMode.SELECTION_CHANGED,
+            fit_columns_on_grid_load=True,
+            theme="balham",
+        )
+
+    with col_right:
+        st.write("### Selected Metric Chart")
+
+        selected_rows = grid_response["selected_rows"]
+        # According to your debug info, 'selected_rows' is a DataFrame. Let's handle that safely.
+        if isinstance(selected_rows, pd.DataFrame):
+            # If there's at least 1 row selected
+            if not selected_rows.empty:
+                # Pull the first selected row
+                row_series = selected_rows.iloc[0]  # row_series is a Series
+                metric_name = row_series["Metric"]
+                category = row_series["Category"]
+
+                # Build the data for plotting
+                data_for_plot = _row_to_plot_data(row_series)
+                fig = px.bar(data_for_plot, x="Year", y="Value",
+                             title=f"{category} – {metric_name}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("No row selected yet. Please select a row in the table.")
+        else:
+            # If selected_rows is not a DataFrame, handle it differently (list, etc.)
+            st.warning("selected_rows is not a DataFrame, check your AgGrid config.")
 
 
-def render_category(title, dataframe, top_5_metrics, next_15_metrics):
+def _row_to_plot_data(row_series):
     """
-    Renders a financial category with top metrics and expandable additional metrics.
-
-    :param title: Title of the financial category (e.g., "Income Statement").
-    :param dataframe: Pandas DataFrame containing the financial data.
-    :param top_5_metrics: List of top 5 metric names to display prominently.
-    :param next_15_metrics: List of next 15 metric names to display in an expander.
+    Convert a Pandas Series (one row) into a DataFrame with columns [Year, Value].
+    We skip 'Metric' and 'Category' columns, focusing on the year columns.
     """
-    st.write(f"### {title}")
+    year_value_pairs = []
+    for col_name, val_str in row_series.items():
+        if col_name in ["Metric", "Category"]:
+            continue
+        numeric_val = _parse_dollar_string(val_str)
+        if numeric_val is not None:
+            year_value_pairs.append((col_name, numeric_val))
 
-    # Ensure the index is set to match the metric names
-    if not isinstance(dataframe.index, pd.Index):
-        dataframe = dataframe.set_index(dataframe.columns[0])  # Set the first column as index if needed
-
-    # Format the DataFrame for better readability
-    formatted_df = format_dataframe(dataframe)
-
-    # Handle missing metrics gracefully
-    top_5_df = extract_metrics(formatted_df, top_5_metrics)
-    next_15_df = extract_metrics(formatted_df, next_15_metrics)
-
-    # Display top 5 metrics
-    st.table(top_5_df)
-
-    # Display next 15 metrics in an expandable section
-    with st.expander(f"View More Details for {title}"):
-        st.table(next_15_df)
+    df = pd.DataFrame(year_value_pairs, columns=["Year", "Value"])
+    return df
 
 
-def extract_metrics(dataframe, metrics):
+def _parse_dollar_string(value_str):
     """
-    Extracts specified metrics from a DataFrame. If a metric is missing,
-    it adds a row with "N/A" values.
-
-    :param dataframe: The DataFrame to extract metrics from.
-    :param metrics: List of metrics to extract.
-    :return: A DataFrame with the specified metrics.
+    Convert '$1,234.56' -> float(1234.56).
+    Return None if it's 'N/A' or unparseable.
     """
-    # Ensure all metrics are in the DataFrame
-    missing_metrics = [metric for metric in metrics if metric not in dataframe.index]
-    if missing_metrics:
-        for metric in missing_metrics:
-            dataframe.loc[metric] = ["N/A"] * len(dataframe.columns)
-
-    return dataframe.loc[metrics]
-
-
-def format_dataframe(df):
-    """
-    Formats a DataFrame for display, ensuring proper formatting for dates, monetary values,
-    and handling missing values.
-
-    :param df: The DataFrame to format.
-    :return: A formatted DataFrame.
-    """
-    # Replace missing values with "N/A"
-    df = df.fillna("N/A")
-
-    # Format monetary values
-    def format_money(value):
-        if isinstance(value, (int, float)):
-            return f"${value:,.2f}"  # Format as $1,000,000.00
-        return value  # Leave non-numeric values unchanged
-
-    formatted_df = df.applymap(format_money)
-
-    # Convert column headers to YYYY-MM if they are datetime-like
-    def format_column_name(col):
-        try:
-            # Attempt to parse and reformat as YYYY-MM
-            return pd.to_datetime(col).strftime("%Y-%m")
-        except (ValueError, TypeError):
-            # Return the column as-is if not a valid date
-            return col
-
-    formatted_df.columns = [format_column_name(col) for col in formatted_df.columns]
-
-    return formatted_df
-
-
-
-def is_valid_date(value):
-    """
-    Checks if a string is a valid date.
-    """
+    if not value_str or value_str == "N/A":
+        return None
     try:
-        pd.to_datetime(value)
-        return True
-    except Exception:
-        return False
+        cleaned = value_str.replace("$", "").replace(",", "")
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _combine_dataframes_for_display(dfs_dict):
+    """
+    Combine multiple dataframes (Income, Balance, Cashflow) into one wide DataFrame.
+    Each DF should have row labels as metrics. We'll reset_index and add a 'Category' column.
+    """
+    frames = []
+    for category, df in dfs_dict.items():
+        temp = df.copy().reset_index()
+        temp.rename(columns={"index": "Metric"}, inplace=True)
+        temp["Category"] = category
+        frames.append(temp)
+
+    combined = pd.concat(frames, axis=0, ignore_index=True)
+
+    # Ensure 'Category' and 'Metric' are leftmost
+    cols = list(combined.columns)
+    if "Category" in cols:
+        cols.remove("Category")
+        cols.insert(0, "Category")
+    if "Metric" in cols:
+        cols.remove("Metric")
+        cols.insert(1, "Metric")
+    combined = combined[cols]
+
+    return combined
