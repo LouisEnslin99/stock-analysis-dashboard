@@ -17,25 +17,23 @@ def calculate_historical_pe(historical_prices, earnings):
 
 # Main function to explore all possible methods of yfinance.Ticker
 def explore_ticker_methods():
-    ticker = "AMZN"
+    ticker = "BYw6.DE"
     stock = yf.Ticker(ticker)
 
     print("\n--- Exploring yfinance.Ticker Methods for", ticker, "---")
 
-    # Try out 
-    balance_sheet = stock.get_balance_sheet(freq="quarterly")
+    stock = yf.Ticker("AAPL")
 
-    print(balance_sheet.head(50))
+    print("Balance Sheet Labels:")
+    print(stock.get_balance_sheet().index)
 
-    cashflow = stock.get_cash_flow()
+    print("\nIncome Statement Labels:")
+    print(stock.get_financials().index)
 
-    print(cashflow.head(52))
+    print("\nCash Flow Labels:")
+    print(stock.get_cashflow().index)
 
-    earnings = stock.get_earnings_dates()
-    #print(earnings.head())
 
-    income = stock.get_income_stmt()
-    print(income.head(45))
 
     history_metadata = stock.get_history_metadata()
 
