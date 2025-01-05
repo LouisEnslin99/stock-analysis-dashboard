@@ -7,7 +7,7 @@ from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 # Your existing imports/data fetchers
 from finance.data_fetcher import fetch_financial_statements
 from finance.data_processor import format_dataframe
-from finance.config import (
+from finance.config.config import (
     BALANCE_TOP_5, BALANCE_NEXT_15,
     CASHFLOW_TOP_5, CASHFLOW_NEXT_15,
     INCOME_TOP_5, INCOME_NEXT_15
@@ -116,8 +116,9 @@ def _render_aggrid_table(df, metric_list, grid_height=200, allow_scroll=False, t
     # 'domLayout="normal"' ensures the table has its own scroll area if needed.
     # We explicitly say 'suppressHorizontalScroll=False' so user can scroll horizontally.
     grid_options = {
-        "domLayout": "normal",
-        "suppressHorizontalScroll": False,
+        "rowSelection": "single",
+        "rowMultiSelectWithClick": False,
+        "suppressRowClickSelection": False
         # Some prefer autoSizeAllColumns on load, but let's rely on fit_columns_on_grid_load
     }
     gb.configure_grid_options(**grid_options)
@@ -135,17 +136,21 @@ def _render_aggrid_table(df, metric_list, grid_height=200, allow_scroll=False, t
         update_mode=GridUpdateMode.MODEL_CHANGED,
         # By default, let's auto-fit columns on load to avoid big blank space:
         fit_columns_on_grid_load=True,
+        
         theme="balham",  # pick a dark theme
         height=grid_height,   # so we see a scrollbar if content overflows
         key=table_key,
-        persist_selection=True,
+        persist_selection=False,
     )
 
     # 4) Parse selection
     selected_rows = grid_response["selected_rows"]
+
+
+    # 1) If it’s a DataFrame
     if isinstance(selected_rows, pd.DataFrame) and not selected_rows.empty:
         row_series = selected_rows.iloc[0]
-        row_info = _build_row_info(row_series)
+        row_info = _build_row_info(row_series)  # parse as Series
         st.session_state["selected_financial_row"] = row_info
 
 
@@ -166,6 +171,9 @@ def _build_row_info(row_series):
     return {"metric": metric_name, "year_values": year_values}
 
 
+
+
+
 def _parse_dollar_string(value_str):
     """Convert '$1,234.56' -> 1234.56. Return None if 'N/A' or unparseable."""
     if not value_str or value_str == "N/A":
@@ -178,9 +186,6 @@ def _parse_dollar_string(value_str):
 
 
 def _show_chart_in_sidebar():
-    """
-    Displays a line chart in the sidebar. Pinned so it's visible while scrolling.
-    """
     with st.sidebar:
         st.header("Selected Metric Chart")
         row_info = st.session_state.get("selected_financial_row", None)
@@ -190,19 +195,54 @@ def _show_chart_in_sidebar():
 
         metric_name = row_info["metric"]
         year_dict = row_info["year_values"]
+        
+        # 1) Make DF: Year vs. Value
         df_for_plot = pd.DataFrame(list(year_dict.items()), columns=["Year", "Value"])
 
-        # Sort by numeric year if possible
+        # Attempt numeric sorting by Year
         try:
             df_for_plot["Year"] = df_for_plot["Year"].astype(int)
-            df_for_plot.sort_values(by="Year", inplace=True)
         except:
             pass
+        df_for_plot.sort_values(by="Year", inplace=True)
 
-        fig = px.line(
-            df_for_plot,
+        # 2) Chart #1: The main line chart of the metric
+        fig_line = px.line(
+            df_for_plot, 
             x="Year", y="Value",
             markers=True,
             title=f"{metric_name} Over Time"
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig_line, use_container_width=True)
+
+        # 3) Calculate YoY growth
+        #    If there's only 1 data point, we'll skip.
+        yoy_data = []
+        for i in range(1, len(df_for_plot)):
+            prev_val = df_for_plot["Value"].iloc[i-1]
+            curr_val = df_for_plot["Value"].iloc[i]
+            if prev_val != 0:
+                yoy_pct = ((curr_val - prev_val) / prev_val) * 100
+            else:
+                yoy_pct = None  # or 0, or skip
+
+            yoy_year = df_for_plot["Year"].iloc[i]  # e.g. 2022
+            yoy_data.append((yoy_year, yoy_pct))
+
+        if yoy_data:
+            yoy_df = pd.DataFrame(yoy_data, columns=["Year", "YoYPercent"])
+            
+            # 4) Chart #2: A bar chart of YoY % changes
+            fig_yoy = px.bar(
+                yoy_df,
+                x="Year", y="YoYPercent",
+                title=f"{metric_name} Year-over-Year Growth (%)",
+                labels={"YoYPercent": "Growth Rate (%)"}
+            )
+            # Optionally format axis
+            fig_yoy.update_yaxes(ticksuffix="%")
+
+            st.plotly_chart(fig_yoy, use_container_width=True)
+        else:
+            st.warning("Not enough data points for YoY growth.")
+

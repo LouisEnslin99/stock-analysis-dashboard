@@ -53,12 +53,12 @@ CASHFLOW_NEXT_15 = [
     "Common Stock Dividend Paid",
     "Net Issuance Payments Of Debt",
     "Net Income From Continuing Operations",
-    "Interest Paid Supplemental Data",         # Replaces "InterestPaidCFF"
-    "Income Tax Paid Supplemental Data",       # Replaces "TaxesRefundPaid"
+    "Interest Paid Supplemental Data",        
+    "Income Tax Paid Supplemental Data",       
     "Net Other Investing Changes",
     "Net Investment Purchase And Sale",
-    "Purchase Of Investment",                  # or "Sale Of Investment" if you prefer
-    "Net Other Financing Charges"              # optional replacement for "EffectOfExchangeRateChanges"
+    "Purchase Of Investment",                  
+    "Net Other Financing Charges"            
 ]
 
 ### Income ###
@@ -67,23 +67,23 @@ INCOME_TOP_5 = [
     "Gross Profit",
     "Operating Income",
     "Net Income",
-    "EBITDA"
+    "EBIT"
 ]
 
 INCOME_NEXT_15 = [
     "Cost Of Revenue",
     "Operating Expense",
     "Selling General And Administration",
-    "Reconciled Depreciation",  # if you need Depreciation data in the Income statement
+    "Reconciled Depreciation",  
     "Pretax Income",
     "Tax Provision",
     "Normalized Income",
     "Diluted EPS",
     "Net Income From Continuing Operation Net Minority Interest",
-    "EBIT",
+    "EBITDA",
     "Interest Expense",
     "Total Expenses",
-    "Other Non Operating Income Expenses",      # e.g., if you need "Other Non Operating" line
-    "Tax Effect Of Unusual Items",             # or remove if not needed
-    "Net Income Including Noncontrolling Interests"  # or "Net Income Common Stockholders"
+    "Other Non Operating Income Expenses",      
+    "Tax Effect Of Unusual Items",             
+    "Net Income Including Noncontrolling Interests" 
 ]

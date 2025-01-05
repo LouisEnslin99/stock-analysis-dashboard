@@ -40,7 +40,7 @@ def main():
         with tab2:
             show_financials_tab(st.session_state["selected_ticker"])
         with tab3:
-            show_analysis_tab()
+            show_analysis_tab(st.session_state["selected_ticker"])
 
 def draw_search_area():
     """
