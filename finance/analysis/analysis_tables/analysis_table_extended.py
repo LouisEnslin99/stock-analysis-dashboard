@@ -60,3 +60,4 @@ def build_extended_analysis_table(stockInfo: dict):
 
     # Display as a table
     st.table(df_info)
+    return df_info

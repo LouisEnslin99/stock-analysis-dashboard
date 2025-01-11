@@ -1,6 +1,11 @@
 # analysis_tab.py
 
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, NamedStyle
+from openpyxl.utils.dataframe import dataframe_to_rows
+from io import BytesIO
 import streamlit as st
+import pandas as pd
 
 from finance.data_fetcher import fetch_financial_statements
 from finance.analysis.analysis_tables.analysis_table_income import build_income_analysis_table
@@ -49,11 +54,9 @@ metrics_description = {
 
 def show_analysis_tab(selected_ticker):
     """
-    High-level function that:
-    1) Fetches the 3 dataframes for the selected ticker (Income, Balance, Cashflow).
-    2) Builds and displays an analysis table for each statement.
+    Fetches and displays financial analysis tables and provides an option to download all tables as a single Excel file
+    with enhanced formatting.
     """
-
     st.title("Analysis Overview")
 
     # Sidebar: Dropdown for metric selection
@@ -65,33 +68,123 @@ def show_analysis_tab(selected_ticker):
         st.sidebar.subheader(f"Description of {selected_metric}")
         st.sidebar.write(metrics_description[selected_metric])
 
-    # 1) Fetch data
+    # Fetch data
     balance_df, income_df, cashflow_df, info = fetch_financial_statements(selected_ticker)
 
-    # 2) Income Statement Analysis
+    # Initialize a list to hold all tables for concatenation
+    all_tables = []
+
+    # Income Statement Analysis
     st.subheader("Income Statement")
-    if income_df is None or income_df.empty:
-        st.warning("No income statement data found.")
-    else:
-        build_income_analysis_table(income_df)
+    if income_df is not None and not income_df.empty:
+        displayed_income_df = build_income_analysis_table(income_df)
+        all_tables.append(displayed_income_df)
 
-    # 3) Balance Sheet Analysis
+    # Balance Sheet Analysis
     st.subheader("Balance Sheet")
-    if balance_df is None or balance_df.empty:
-        st.warning("No balance sheet data found.")
-    else:
-        build_balance_analysis_table(balance_df, income_df)
+    if balance_df is not None and not balance_df.empty:
+        displayed_balance_df = build_balance_analysis_table(balance_df, income_df)
+        all_tables.append(displayed_balance_df)
 
-    # 4) Cash Flow Analysis
+    # Cash Flow Analysis
     st.subheader("Cash Flow")
-    if cashflow_df is None or cashflow_df.empty:
-        st.warning("No cashflow data found.")
-    else:
-        build_cashflow_analysis_table(cashflow_df, income_df)
+    if cashflow_df is not None and not cashflow_df.empty:
+        displayed_cashFlow_df = build_cashflow_analysis_table(cashflow_df, income_df)
+        all_tables.append(displayed_cashFlow_df)
 
-    # 5) Extended values
-    st.subheader("General values")
-    if cashflow_df is None or cashflow_df.empty:
-        st.warning("No cashflow data found.")
+    # Extended Values
+    st.subheader("General Values")
+    if cashflow_df is not None and not cashflow_df.empty:
+        displayed_extValues_df = build_extended_analysis_table(info)
+
+        # Move "Value" column into the "Latest Value" column for consistency
+        if "Value" in displayed_extValues_df.columns:
+            displayed_extValues_df = displayed_extValues_df.rename(columns={"Value": "Latest Value"})
+
+        all_tables.append(displayed_extValues_df)
+
+    # Only create an Excel download if we have data
+    if all_tables:
+        # 1. Combine tables
+        combined_df = pd.concat(all_tables, ignore_index=True)
+        # 2. Remove any color columns if they exist
+        combined_df = combined_df.loc[:, ~combined_df.columns.str.contains("color", case=False)]
+
+        # 3. Create a new workbook and select the active sheet
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Analysis Overview"
+
+        # 4. Define NamedStyles
+        currency_style = NamedStyle(name="currency_style", number_format="$#,##0.00")
+        euro_currency_style = NamedStyle(name="euro_currency_style", number_format="€#,##0.00")
+        percentage_style = NamedStyle(name="percentage_style", number_format="0.00%")
+
+        # 5. Collect existing style names safely
+        existing_style_names = set()
+        for s in wb.named_styles:
+            if isinstance(s, NamedStyle):
+                existing_style_names.add(s.name)
+            elif isinstance(s, str):
+                existing_style_names.add(s)
+
+        # 6. Add our styles if they aren't already present
+        for style in [currency_style, euro_currency_style, percentage_style]:
+            if style.name not in existing_style_names:
+                wb.add_named_style(style)
+
+        # 7. Write the DataFrame to the Excel sheet (headers + data)
+        for r_idx, row in enumerate(dataframe_to_rows(combined_df, index=False, header=True), start=1):
+            for c_idx, value in enumerate(row, start=1):
+                ws.cell(row=r_idx, column=c_idx, value=value)
+
+        # 8. Apply formatting (fonts/alignments) to the header row
+        header_font = Font(bold=True)
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        for cell in ws[1]:
+            cell.font = header_font
+            cell.alignment = header_alignment
+
+        # 9. For data rows, adjust styles if header indicates '%', '$', or '€'
+        #    (start at row=2 so we skip the header)
+        max_col = ws.max_column
+        max_row = ws.max_row
+
+        for row in ws.iter_rows(min_row=2, max_row=max_row, min_col=1, max_col=max_col):
+            for cell in row:
+                if cell.value is None:
+                    continue  # skip empty cells
+
+                # Check the column header
+                col_header = ws.cell(row=1, column=cell.column).value
+
+                # If this column is a percentage
+                if isinstance(cell.value, (int, float)) and '%' in str(col_header):
+                    # e.g. 25 instead of 0.25 => fix it
+                    cell.value = cell.value / 100.0
+                    cell.style = percentage_style
+
+                # If this column is USD
+                elif isinstance(cell.value, (int, float)) and '$' in str(col_header):
+                    cell.style = currency_style
+
+                # If this column is EUR
+                elif isinstance(cell.value, (int, float)) and '€' in str(col_header):
+                    cell.style = euro_currency_style
+
+                # Otherwise, leave as default
+
+        # 10. Save the workbook to a BytesIO stream
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # 11. Provide the download button
+        st.download_button(
+            label="Download Analysis as Excel",
+            data=output,
+            file_name=f"{selected_ticker}_analysis_combined.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
     else:
-        build_extended_analysis_table(info)
+        st.warning("No data available to download.")

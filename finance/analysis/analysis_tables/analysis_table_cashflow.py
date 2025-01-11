@@ -139,6 +139,7 @@ def build_cashflow_analysis_table(cashflow_df, income_df):
     # Convert rows -> DataFrame, then display
     df_analysis = pd.DataFrame(rows)
     _display_analysis_table(df_analysis)
+    return df_analysis
 
 
 def _display_analysis_table(df_analysis):

@@ -314,48 +314,11 @@ def build_balance_analysis_table(balance_df, income_df):
         "Color 3Y": d_ratio_class_3y
     })
 
-    # ------------------ 10) Dividendes (€) ------------------
-    # (Not in your new index, but we keep the same logic if you have a 'Dividendes' row)
-    div_now, div_1y, div_3y = get_growth_metrics("Dividendes")
-    div_class    = classify_metric(div_now, ANALYSIS_THRESHOLDS["Dividends"])
-    div_c1       = classify_metric(div_1y, ANALYSIS_THRESHOLDS["DividendsGrowth"])
-    div_c3       = classify_metric(div_3y, ANALYSIS_THRESHOLDS["DividendsGrowth"])
-
-    rows.append({
-        "Metric": "Dividendes (€)",
-        "Latest Value": div_now,
-        "1Y Growth (%)": div_1y,
-        "3Y CAGR (%)": div_3y,
-        "Color": div_class,
-        "Color 1Y": div_c1,
-        "Color 3Y": div_c3
-    })
-
-    # ------------------ 11) Dividendes to share (%) ------------------
-    # If the data doesn't exist, remain placeholders:
-    div_ts_now = None
-    div_ts_1y  = None
-    div_ts_3y  = None
-
-    _, divts_1y_g, divts_3y_g = calc_growth_metrics(div_ts_now, div_ts_1y, div_ts_3y)
-
-    divts_class   = classify_metric(div_ts_now, ANALYSIS_THRESHOLDS["DividendsToShare"])
-    divts_c1      = classify_metric(div_ts_1y, ANALYSIS_THRESHOLDS["DividendsToShareGrowth"])
-    divts_c3      = classify_metric(div_ts_3y, ANALYSIS_THRESHOLDS["DividendsToShareGrowth"])
-
-    rows.append({
-        "Metric": "Dividendes to share (%)",
-        "Latest Value": div_ts_now,
-        "1Y Growth (%)": divts_1y_g,
-        "3Y CAGR (%)": divts_3y_g,
-        "Color": divts_class,
-        "Color 1Y": divts_c1,
-        "Color 3Y": divts_c3
-    })
 
     # 2) Convert rows -> DataFrame, then display
     df_analysis = pd.DataFrame(rows)
     _display_analysis_table(df_analysis)
+    return df_analysis
 
 
 def _display_analysis_table(df_analysis):

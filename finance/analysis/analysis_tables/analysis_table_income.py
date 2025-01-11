@@ -298,62 +298,7 @@ def build_income_analysis_table(income_df):
     # 2) Convert the collected rows -> DataFrame
     df_analysis = pd.DataFrame(rows)
     _display_analysis_table(df_analysis)
-
-
-def _display_analysis_table(df_analysis):
-    """
-    Takes a DataFrame (df_analysis) with columns like:
-      - "Metric"
-      - "Latest Value"
-      - "1Y Growth (%)"
-      - "3Y CAGR (%)"
-      - "Color"
-      - "Color 1Y"
-      - "Color 3Y"
-
-    Then it applies formatting and color styling before showing 
-    the final table in Streamlit.
-    """
-
-    if df_analysis.empty:
-        st.info("No rows to display in the analysis table.")
-        return
-
-    # 1) Format numeric cells
-    formatted_data = []
-    for _, row in df_analysis.iterrows():
-        formatted_row = {
-            "Metric":          row["Metric"],
-            "Latest Value":    format_cell(row["Latest Value"], row["Metric"]),
-            "1Y Growth (%)":   format_cell(row["1Y Growth (%)"], "%"),
-            "3Y CAGR (%)":     format_cell(row["3Y CAGR (%)"], "%"),
-            "Color":           row.get("Color", "gray"),
-            "Color 1Y":        row.get("Color 1Y", "gray"),
-            "Color 3Y":        row.get("Color 3Y", "gray")
-        }
-        formatted_data.append(formatted_row)
-
-    df_formatted = pd.DataFrame(formatted_data)
-
-    # 2) Determine which columns to display and in which order
-    display_cols = ["Metric", "Latest Value", "1Y Growth (%)", "3Y CAGR (%)"]
-    df_display = df_formatted[display_cols]
-
-    def row_style(row):
-        idx = row.name
-        color_main = df_formatted.loc[idx, "Color"]
-        color_1y   = df_formatted.loc[idx, "Color 1Y"]
-        color_3y   = df_formatted.loc[idx, "Color 3Y"]
-
-        return [
-            "",  # Metric => no background color
-            color_cell(row["Latest Value"], color_main),
-            color_cell(row["1Y Growth (%)"], color_1y),
-            color_cell(row["3Y CAGR (%)"], color_3y),
-        ]
-
-    styled = df_display.style.apply(row_style, axis=1)
-    st.table(styled)
+    return df_analysis
 
 
 def _display_analysis_table(df_analysis):
