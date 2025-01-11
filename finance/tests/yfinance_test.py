@@ -1,5 +1,6 @@
 import yfinance as yf
 import pandas as pd
+import numpy
 
 # Helper function to calculate historical P/E (Price/Earnings) ratio
 def calculate_historical_pe(historical_prices, earnings):
@@ -24,18 +25,16 @@ def explore_ticker_methods():
 
     stock = yf.Ticker("AMZN")
 
-    # print("Balance Sheet Labels:")
-    # print(stock.balance_sheet.index)
+    print("Balance Sheet Labels:")
+    print(stock.balance_sheet.index)
 
     print("\nIncome Statement Labels:")
     print(stock.financials.index)
 
-    # print("\nCash Flow Labels:")
-    # print(stock.cashflow.index)
+    print("\nCash Flow Labels:")
+    print(stock.cashflow.index)
 
-    print(stock.income_stmt.head(100))
-    print(stock.income_stmt.columns[0])
-    print(stock.income_stmt.columns[3])
+    print(stock.info)
 
 
 # Run the function

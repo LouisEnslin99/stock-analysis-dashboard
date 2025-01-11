@@ -1,12 +1,5 @@
-# finace/analysis_formulas.py
+# finace/analysis/analysis_formulas.py
 
-"""
-Contains helper functions for analysis metrics:
-- 1-year growth
-- 5-year CAGR
-- margin calculations
-- color classification
-"""
 
 import math
 
@@ -64,6 +57,9 @@ def classify_metric(value, thresholds: dict):
     If value is None => 'gray' or 'NA'
     """
     if value is None:
+        return "gray"
+    
+    if thresholds is None: 
         return "gray"
 
     inverted = thresholds.get("inverted", False)

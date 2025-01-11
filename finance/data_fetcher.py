@@ -12,7 +12,8 @@ def fetch_financial_statements(ticker: str):
     balance_sheet = stock.balance_sheet
     income_stmt = stock.financials
     cash_flow = stock.cashflow
-    return balance_sheet, income_stmt, cash_flow
+    info = stock.info
+    return balance_sheet, income_stmt, cash_flow, info
 
 
 def search_yahoo_finance(query: str, limit: int = 5):

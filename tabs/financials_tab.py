@@ -23,7 +23,7 @@ def show_financials_tab(selected_ticker):
     st.subheader(f"Financial Statements for {selected_ticker}")
 
     # 1) Fetch and format data
-    balance_df, income_df, cashflow_df = fetch_financial_statements(selected_ticker)
+    balance_df, income_df, cashflow_df, _ = fetch_financial_statements(selected_ticker)
     balance_df = format_dataframe(balance_df)
     income_df = format_dataframe(income_df)
     cashflow_df = format_dataframe(cashflow_df)
@@ -91,10 +91,9 @@ def _render_category_interactive(dataframe, top_5, next_15, category_key=""):
 def _render_aggrid_table(df, metric_list, grid_height=200, allow_scroll=False, table_key=""):
     """
     Displays an AgGrid table in dark mode, using the entire table width.
-    - Removes rows entirely 'N/A'.
-    - If user selects a row, we store it in session_state["selected_financial_row"].
-    - 'allow_scroll' determines if we use normal layout w/ scrollbars.
+    Formats numeric values to have no decimals.
     """
+
     # 1) Subset the metrics
     subset_df = df.loc[df.index.intersection(metric_list)].copy()
 
@@ -108,50 +107,51 @@ def _render_aggrid_table(df, metric_list, grid_height=200, allow_scroll=False, t
     subset_df.reset_index(inplace=True)
     subset_df.rename(columns={"index": "Metric"}, inplace=True)
 
-    # 2) Build AgGrid config
+    # 2) Format numeric values to integers by truncating decimals
+    for col in subset_df.columns:
+        if col != "Metric":  # Exclude the Metric column
+            subset_df[col] = subset_df[col].apply(
+                lambda x: int(x) if pd.notnull(x) and isinstance(x, (int, float)) else x
+            )
+
+
+    # 3) Build AgGrid config
     gb = GridOptionsBuilder.from_dataframe(subset_df)
     gb.configure_selection(selection_mode="single", use_checkbox=False)
 
     # Let columns auto-fill the space
-    # 'domLayout="normal"' ensures the table has its own scroll area if needed.
-    # We explicitly say 'suppressHorizontalScroll=False' so user can scroll horizontally.
     grid_options = {
         "rowSelection": "single",
         "rowMultiSelectWithClick": False,
         "suppressRowClickSelection": False
-        # Some prefer autoSizeAllColumns on load, but let's rely on fit_columns_on_grid_load
     }
     gb.configure_grid_options(**grid_options)
 
-    # (Optional) No pagination for only 5 or 15 rows
+    # Disable pagination for short tables
     gb.configure_pagination(enabled=False)
 
     final_grid_options = gb.build()
 
-    # 3) Render the grid
+    # 4) Render the grid
     grid_response = AgGrid(
         subset_df,
         data_return_mode='AS_INPUT', 
         gridOptions=final_grid_options,
         update_mode=GridUpdateMode.MODEL_CHANGED,
-        # By default, let's auto-fit columns on load to avoid big blank space:
         fit_columns_on_grid_load=True,
-        
         theme="balham",  # pick a dark theme
         height=grid_height,   # so we see a scrollbar if content overflows
         key=table_key,
         persist_selection=False,
     )
 
-    # 4) Parse selection
+    # 5) Parse selection
     selected_rows = grid_response["selected_rows"]
 
-
-    # 1) If it’s a DataFrame
-    if isinstance(selected_rows, pd.DataFrame) and not selected_rows.empty:
-        row_series = selected_rows.iloc[0]
-        row_info = _build_row_info(row_series)  # parse as Series
+    if isinstance(selected_rows, list) and selected_rows:
+        row_info = _build_row_info(selected_rows[0])  # parse selected row
         st.session_state["selected_financial_row"] = row_info
+
 
 
 def _build_row_info(row_series):
