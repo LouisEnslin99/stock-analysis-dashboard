@@ -1,4 +1,9 @@
 import streamlit as st
+from requests_cache import CachedSession
+
+# 1 Stunde Cache
+session = CachedSession("yfinance_cache", backend="sqlite", expire_after=3600)
+session.headers["User-Agent"] = "Mozilla/5.0"  # hilft manchmal gegen komische Responses
 import yfinance as yf
 import plotly.express as px
 import time
