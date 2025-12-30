@@ -3,6 +3,7 @@ import streamlit as st
 from tabs.overview_tab import show_overview_tab
 from tabs.financials_tab import show_financials_tab
 from tabs.analysis_tab import show_analysis_tab
+from tabs.valuation_tab import show_valuation_tab
 
 # Import your search function
 from finance.data_fetcher import search_yahoo_finance
@@ -34,13 +35,15 @@ def main():
     if st.session_state["selected_ticker"] is None:
         pass
     else:
-        tab1, tab2, tab3 = st.tabs(["Overview", "Financials", "Analysis"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Overview", "Financials", "Analysis", "Valuation"])
         with tab1:
             show_overview_tab()
         with tab2:
             show_financials_tab(st.session_state["selected_ticker"])
         with tab3:
             show_analysis_tab(st.session_state["selected_ticker"])
+        with tab4:
+            show_valuation_tab()
 
 def draw_search_area():
     """
