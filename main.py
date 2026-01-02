@@ -6,7 +6,7 @@ from tabs.analysis_tab import show_analysis_tab
 from tabs.valuation_tab import show_valuation_tab
 
 # Import your search function
-from finance.data_fetcher import search_yahoo_finance
+from finance.data_fetcher import search_yahoo_finance, fetch_financial_statements
 
 def main():
     """
@@ -39,7 +39,19 @@ def main():
         with tab1:
             show_overview_tab()
         with tab2:
-            show_financials_tab(st.session_state["selected_ticker"])
+            # Fetch financial data
+            balance_df, income_df, cashflow_df, info = fetch_financial_statements(st.session_state["selected_ticker"])
+            
+            # Create financials_data dictionary with required structure
+            financials_data = {
+                'income_statement': income_df,
+                'balance_sheet': balance_df,
+                'cash_flow': cashflow_df,
+                'valuation_metrics': None,
+                'growth_metrics': None
+            }
+            
+            show_financials_tab(financials_data, st.session_state["selected_ticker"])
         with tab3:
             show_analysis_tab(st.session_state["selected_ticker"])
         with tab4:
