@@ -35,7 +35,8 @@ def show_financials_tab(selected_ticker):
         dataframe=income_df,
         top_5=INCOME_TOP_5,
         next_15=INCOME_NEXT_15,
-        category_key="income"
+        category_key="income",
+        selected_ticker=selected_ticker
     )
 
     # 3) Balance Sheet
@@ -45,7 +46,8 @@ def show_financials_tab(selected_ticker):
         dataframe=balance_df,
         top_5=BALANCE_TOP_5,
         next_15=BALANCE_NEXT_15,
-        category_key="balance"
+        category_key="balance",
+        selected_ticker=selected_ticker
     )
 
     # 4) Cash Flow
@@ -55,14 +57,15 @@ def show_financials_tab(selected_ticker):
         dataframe=cashflow_df,
         top_5=CASHFLOW_TOP_5,
         next_15=CASHFLOW_NEXT_15,
-        category_key="cashflow"
+        category_key="cashflow",
+        selected_ticker=selected_ticker
     )
 
     # 5) Show the chart pinned in the sidebar (always visible)
     _show_chart_in_sidebar()
 
 
-def _render_category_interactive(dataframe, top_5, next_15, category_key=""):
+def _render_category_interactive(dataframe, top_5, next_15, category_key="", selected_ticker=""):
     """
     Renders two tables:
       1) A table for the top 5 metrics (dark theme, no blank space).
@@ -75,7 +78,8 @@ def _render_category_interactive(dataframe, top_5, next_15, category_key=""):
         metric_list=top_5,
         grid_height=200,           # short table for top 5
         allow_scroll=True,
-        table_key= category_key + str(5)
+        table_key= category_key + str(5),
+        selected_ticker=selected_ticker
     )
 
     with st.expander("View 15 More Metrics"):
@@ -84,11 +88,12 @@ def _render_category_interactive(dataframe, top_5, next_15, category_key=""):
             metric_list=next_15,
             grid_height=400,       # taller table for next 15
             allow_scroll=True,
-            table_key= category_key + str(15)
+            table_key= category_key + str(15),
+            selected_ticker=selected_ticker
         )
 
 
-def _render_aggrid_table(df, metric_list, grid_height=200, allow_scroll=False, table_key=""):
+def _render_aggrid_table(df, metric_list, grid_height=200, allow_scroll=False, table_key="", selected_ticker=""):
     """
     Displays an AgGrid table in dark mode, using the entire table width.
     Formats numeric values to have no decimals.
@@ -141,7 +146,7 @@ def _render_aggrid_table(df, metric_list, grid_height=200, allow_scroll=False, t
         fit_columns_on_grid_load=True,
         theme="balham",  # pick a dark theme
         height=grid_height,   # so we see a scrollbar if content overflows
-        key=table_key,
+        key=f"{selected_ticker}_{table_key}",
         persist_selection=False,
     )
 
