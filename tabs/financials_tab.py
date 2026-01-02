@@ -20,6 +20,14 @@ def show_financials_tab(selected_ticker):
     Each section has a top-5 table and an expandable 15-metrics table.
     Both tables can update the pinned chart in the sidebar.
     """
+    # Clear the selected row when ticker changes
+    if "last_selected_ticker" not in st.session_state:
+        st.session_state["last_selected_ticker"] = None
+
+    if st.session_state["last_selected_ticker"] != selected_ticker:
+        st.session_state["selected_financial_row"] = None
+        st.session_state["last_selected_ticker"] = selected_ticker
+
     st.subheader(f"Financial Statements for {selected_ticker}")
 
     # 1) Fetch and format data
