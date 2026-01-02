@@ -104,6 +104,18 @@ def _render_aggrid_table(df: pd.DataFrame, table_key: str, selected_ticker: str)
         table_key: Unique key for this table
         selected_ticker: The currently selected stock ticker symbol
     """
+    # Make a copy to avoid modifying the original
+    df = df.copy()
+    
+    # yfinance returns DataFrames with datetime columns and metrics as index
+    # Reset index to make metrics a column, then convert column names to strings
+    if df.index.name is None:
+        df.index.name = 'Metric'
+    df = df.reset_index()
+    
+    # Convert all column names to strings (datetime columns cause issues with AgGrid)
+    df.columns = [str(col).split(' ')[0] if hasattr(col, 'strftime') else str(col) for col in df.columns]
+    
     # Configure grid options
     gb = GridOptionsBuilder.from_dataframe(df)
     
