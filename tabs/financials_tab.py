@@ -114,7 +114,7 @@ def _render_aggrid_table(df: pd.DataFrame, table_key: str, selected_ticker: str)
     df = df.reset_index()
     
     # Convert all column names to strings (datetime columns cause issues with AgGrid)
-    df.columns = [str(col).split(' ')[0] if hasattr(col, 'strftime') else str(col) for col in df.columns]
+    df.columns = [col.strftime('%Y-%m-%d') if hasattr(col, 'strftime') else str(col) for col in df.columns]
     
     # Configure grid options
     gb = GridOptionsBuilder.from_dataframe(df)
